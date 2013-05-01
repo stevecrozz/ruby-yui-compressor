@@ -1,4 +1,4 @@
-require "popen4"
+require "open3"
 require "shellwords"
 require "stringio"
 
@@ -69,27 +69,20 @@ module YUI #:nodoc:
     #
     def compress(stream_or_string)
       streamify(stream_or_string) do |stream|
-        output = true
-        status = POpen4.popen4(command, "b") do |stdout, stderr, stdin, pid|
-          begin
-            stdin.binmode
-            transfer(stream, stdin)
+        output = ""
+        err = ""
 
-            if block_given?
-              yield stdout
-            else
-              output = stdout.read
-            end
-
-          rescue Exception => e
-            raise RuntimeError, "compression failed"
-          end
+        Open3.popen3(command) do |stdin, stdout, stderr, thread|
+          stdin.write(stream.read)
+          stdin.close
+          output = stdout.read
+          err = stderr.read
         end
 
-        if status.exitstatus.zero?
-          output
+        if err.empty?
+          return output
         else
-          raise RuntimeError, "compression failed"
+          raise RuntimeError, err
         end
       end
     end
